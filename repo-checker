@@ -1,0 +1,109 @@
+#!/bin/bash
+
+## Author: Aj-Seven
+## Repository: https://github.com/Aj-Seven/RepoUpdater
+## Original Repository: https://github.com/Aj-Seven/Android-Sysinfo
+
+# Color codes
+RESET=$(tput sgr0)
+BOLD=$(tput bold)
+YELLOW=$(tput setaf 3)
+GREEN=$(tput setaf 2)
+CYAN=$(tput setaf 6)
+
+# Store repo info
+# Update the repo details correctly before running the script
+REPO_DIR=""
+SCRIPT_NAME=""
+REPO_URL=""
+BIN_DIR=""
+
+# Global variable to store update status
+UPDATE_STATUS=""
+
+# Function to print texts
+PRINT() {
+    local style=$1
+    local message=$2
+    echo -e "${style}${message}${RESET}"
+}
+
+# Function to update the repository
+update_repo() {
+    cd "$REPO_DIR" || exit 1
+
+    # Run git pull origin and parse the output to show only relevant lines
+    output=$(git pull origin $(git rev-parse --abbrev-ref HEAD) 2>&1)
+    if echo "$output" | grep -q 'Already up to date'; then
+        PRINT "$BOLD" "up-to-date"
+    elif echo "$output" | grep -q 'Updating'; then
+        PRINT "$BOLD$YELLOW" "Updated the script, start it again to apply changes..."
+        exit 0
+    else
+        PRINT "$BOLD" "Failed"
+    fi
+}
+
+# Function to check for updates in the repository
+monitor_update() {
+    # Check if the repository folder exists
+    if [ ! -d "$REPO_DIR" ]; then
+        git clone "$REPO_URL" "$REPO_DIR" > /dev/null 2>&1 || { UPDATE_STATUS="failed"; return; }
+    fi
+
+    # Fetch updates forcefully
+    cd "$REPO_DIR" || { UPDATE_STATUS="failed"; return; }
+    git fetch --force origin > /dev/null 2>&1
+
+    # Get the current branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+    # Check if the local branch is behind the remote branch
+    if [ $(git rev-list HEAD...origin/$current_branch --count) -gt 0 ]; then
+        PRINT "$BOLD$GREEN" "available"
+    else
+        PRINT "$BOLD$CYAN" "up-to-date"
+    fi 
+}
+
+UPDATE_STATUS=$(monitor_update)
+
+# update function
+check_update() {
+    clear
+    cd "$REPO_DIR" || { UPDATE_STATUS="failed"; return; }
+    git fetch --force origin > /dev/null 2>&1
+
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+    if [ $(git rev-list HEAD...origin/$current_branch --count) -gt 0 ]; then
+        clear
+        PRINT "$BOLD$GREEN" "Updates Available :)"
+        read -p "Do you want to update it? (Y/N) " select
+        case $select in
+            Y|y) update_repo
+            ;;
+            N|n)
+                PRINT "$BOLD$YELLOW" "Returning to main Menu"
+                UPDATE_STATUS=$(monitor_update)
+                main
+            ;;
+            *)
+                PRINT "$BOLD$YELLOW" "INFO: Invalid Selection, Please select options between Y/N..."
+            ;;
+        esac
+    else
+        PRINT "$BOLD$CYAN" "Already Up-to-date."
+        PRINT "$BOLD$YELLOW" "INFO: Press 'Enter' or any key to return to the main menu..."
+        read -r
+    fi
+}
+
+# Main function
+main() {
+    # Main menu or other functionality goes here
+    check_update
+}
+
+# Start the script
+main
